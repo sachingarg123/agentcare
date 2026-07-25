@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseDesk Eval Report</title>
+  <style>
+    :root {
+      --ok: #157a3c;
+      --fail: #b42318;
+      --border: #d0d5dd;
+      --muted: #667085;
+      --bg: #f8fafc;
+    }
+    body {
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      margin: 0;
+      background: linear-gradient(180deg, #eef2f7 0%, var(--bg) 40%);
+      color: #101828;
+      line-height: 1.45;
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+    h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+    .meta { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.95rem; }
+    .gates {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.75rem;
+    }
+    .gate {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      background: #fff;
+    }
+    .gate .label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .gate .value { font-size: 1.35rem; font-weight: 650; margin-top: 0.2rem; }
+    .gate.pass .value { color: var(--ok); }
+    .gate.fail .value { color: var(--fail); }
+    h2 { font-size: 1.15rem; margin: 1.75rem 0 0.6rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      font-size: 0.9rem;
+    }
+    th, td { padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { background: #f2f4f7; font-weight: 600; }
+    tr:last-child td { border-bottom: none; }
+    .pass { color: var(--ok); font-weight: 600; }
+    .fail { color: var(--fail); font-weight: 600; }
+    .req { max-width: 28rem; word-break: break-word; }
+    footer { margin-top: 2rem; color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PulseDesk Eval Report</h1>
+    <p class="meta">Generated {{ generated_at }} · overall: <strong class="{{ overall_class }}">{{ overall_status }}</strong></p>
+
+    <section class="gates">
+      {{ gate_cards }}
+    </section>
+
+    {{ sections }}
+
+    <footer>
+      Gates: safety recall ≥ 100% on unsafe cases; routing accuracy ≥ 80%.
+      Source fixtures: <code>eval/fixtures/</code>.
+    </footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseDesk — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar" id="topbar">
+      <a class="brand" href="/staff/admin">PulseDesk</a>
+      <div class="nav-links"><span class="muted">Loading…</span></div>
+    </div>
+    <header class="page-intro">
+      <h1>Admin</h1>
+      <p class="muted">Manage departments, doctors, and appointment slots.</p>
+    </header>
+    <p id="err" class="err" hidden></p>
+
+    <section class="panel">
+      <h2>Departments</h2>
+      <form id="dept-form" class="row" style="margin-bottom:0.75rem">
+        <input name="name" placeholder="Name" required />
+        <input name="description" placeholder="Description" />
+        <button type="submit">Add</button>
+      </form>
+      <div id="depts"><p class="empty">Loading…</p></div>
+    </section>
+
+    <section class="panel">
+      <h2>Doctors</h2>
+      <form id="doc-form" class="row" style="margin-bottom:0.75rem">
+        <select name="department_id" id="doc-dept" required></select>
+        <input name="name" placeholder="Doctor name" required />
+        <button type="submit">Add</button>
+      </form>
+      <div id="doctors"><p class="empty">Loading…</p></div>
+    </section>
+
+    <section class="panel">
+      <h2>Slots</h2>
+      <form id="slot-form" class="row" style="margin-bottom:0.75rem">
+        <select name="doctor_id" id="slot-doc" required></select>
+        <input type="datetime-local" name="start_time" required />
+        <input type="datetime-local" name="end_time" required />
+        <button type="submit">Add slot</button>
+      </form>
+      <div id="slots"><p class="empty">Loading…</p></div>
+    </section>
+  </div>
+
+  <script src="/static/js/api.js"></script>
+  <script>
+    (function () {
+      if (!window.PulseDesk) return;
+      var AC = window.PulseDesk;
+      function showErr(msg) {
+        var el = document.getElementById("err");
+        el.textContent = msg || "";
+        el.hidden = !msg;
+      }
+      function load() {
+        showErr("");
+        return Promise.all([
+          AC.api("/staff/departments"),
+          AC.api("/staff/doctors"),
+          AC.api("/staff/slots?limit=50"),
+        ]).then(function (results) {
+          var depts = results[0], doctors = results[1], slots = results[2];
+          document.getElementById("doc-dept").innerHTML = depts.map(function (d) {
+            return '<option value="' + d.id + '">' + AC.escapeHtml(d.name) + (d.active ? "" : " (inactive)") + "</option>";
+          }).join("");
+          document.getElementById("slot-doc").innerHTML = doctors.filter(function (d) { return d.active; }).map(function (d) {
+            return '<option value="' + d.id + '">' + AC.escapeHtml(d.name) + "</option>";
+          }).join("");
+          document.getElementById("depts").innerHTML = depts.length
+            ? '<table class="table"><thead><tr><th>Name</th><th>Active</th><th></th></tr></thead><tbody>' +
+              depts.map(function (d) {
+                return "<tr><td>" + AC.escapeHtml(d.name) + '<div class="muted">' + AC.escapeHtml(d.description || "") +
+                  "</div></td><td>" + (d.active ? AC.statusBadge("AVAILABLE") : AC.statusBadge("CANCELLED")) +
+                  "</td><td>" + (d.active ? '<button type="button" class="secondary deactivate-dept" data-id="' + d.id + '">Deactivate</button>' : "") +
+                  "</td></tr>";
+              }).join("") + "</tbody></table>"
+            : '<p class="empty">No departments.</p>';
+          document.getElementById("doctors").innerHTML = doctors.length
+            ? '<table class="table"><thead><tr><th>Name</th><th>Active</th><th></th></tr></thead><tbody>' +
+              doctors.map(function (d) {
+                return "<tr><td>" + AC.escapeHtml(d.name) + "</td><td>" + (d.active ? "yes" : "no") +
+                  "</td><td>" + (d.active ? '<button type="button" class="secondary deactivate-doc" data-id="' + d.id + '">Deactivate</button>' : "") +
+                  "</td></tr>";
+              }).join("") + "</tbody></table>"
+            : '<p class="empty">No doctors.</p>';
+          document.getElementById("slots").innerHTML = slots.length
+            ? '<table class="table"><thead><tr><th>Start</th><th>End</th><th>Status</th><th></th></tr></thead><tbody>' +
+              slots.map(function (s) {
+                return "<tr><td>" + AC.escapeHtml(s.start_time) + "</td><td>" + AC.escapeHtml(s.end_time) +
+                  "</td><td>" + AC.statusBadge(s.status) + "</td><td>" +
+                  (s.status === "AVAILABLE" ? '<button type="button" class="danger del-slot" data-id="' + s.id + '">Delete</button>' : "") +
+                  "</td></tr>";
+              }).join("") + "</tbody></table>"
+            : '<p class="empty">No slots.</p>';
+
+          document.querySelectorAll(".deactivate-dept").forEach(function (btn) {
+            btn.onclick = function () {
+              AC.api("/staff/departments/" + btn.getAttribute("data-id"), { method: "DELETE" }).then(load).catch(function (e) { showErr(e.message); });
+            };
+          });
+          document.querySelectorAll(".deactivate-doc").forEach(function (btn) {
+            btn.onclick = function () {
+              AC.api("/staff/doctors/" + btn.getAttribute("data-id"), { method: "DELETE" }).then(load).catch(function (e) { showErr(e.message); });
+            };
+          });
+          document.querySelectorAll(".del-slot").forEach(function (btn) {
+            btn.onclick = function () {
+              AC.api("/staff/slots/" + btn.getAttribute("data-id"), { method: "DELETE" }).then(load).catch(function (e) { showErr(e.message); });
+            };
+          });
+        });
+      }
+
+      AC.bootPage(["ADMIN"], "admin").then(function (session) {
+        if (!session) return;
+        document.getElementById("dept-form").onsubmit = function (e) {
+          e.preventDefault();
+          var fd = new FormData(e.target);
+          AC.api("/staff/departments", { method: "POST", json: { name: fd.get("name"), description: fd.get("description") || null } })
+            .then(function () { e.target.reset(); return load(); })
+            .catch(function (ex) { showErr(ex.message); });
+        };
+        document.getElementById("doc-form").onsubmit = function (e) {
+          e.preventDefault();
+          var fd = new FormData(e.target);
+          AC.api("/staff/doctors", { method: "POST", json: { department_id: fd.get("department_id"), name: fd.get("name") } })
+            .then(function () { e.target.reset(); return load(); })
+            .catch(function (ex) { showErr(ex.message); });
+        };
+        document.getElementById("slot-form").onsubmit = function (e) {
+          e.preventDefault();
+          var fd = new FormData(e.target);
+          AC.api("/staff/slots", {
+            method: "POST",
+            json: {
+              doctor_id: fd.get("doctor_id"),
+              start_time: new Date(fd.get("start_time")).toISOString(),
+              end_time: new Date(fd.get("end_time")).toISOString(),
+            },
+          }).then(function () { e.target.reset(); return load(); }).catch(function (ex) { showErr(ex.message); });
+        };
+        load().catch(function (ex) { showErr(ex.message); });
+      });
+    })();
+  </script>
+</body>
+</html>

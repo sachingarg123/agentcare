@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseDesk — Staff</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar" id="topbar">
+      <a class="brand" href="/staff">PulseDesk</a>
+      <div class="nav-links"><span class="muted">Loading…</span></div>
+    </div>
+
+    <header class="page-intro">
+      <h1>Staff desk</h1>
+      <p class="muted">Review escalations, browse patient requests, and check the audit trail.</p>
+    </header>
+
+    <section class="panel panel-primary">
+      <h2>Pending escalations</h2>
+      <div id="esc"><p class="empty">Loading…</p></div>
+    </section>
+
+    <section class="panel">
+      <h2>Recent requests</h2>
+      <div class="row" style="margin-bottom:0.75rem">
+        <label style="margin:0">Status
+          <select id="status-filter">
+            <option value="">All</option>
+            <option>WAITING_HITL</option>
+            <option>RUNNING</option>
+            <option>COMPLETED</option>
+            <option>BLOCKED_SAFETY</option>
+            <option>FAILED</option>
+          </select>
+        </label>
+        <button type="button" class="secondary" id="reload">Refresh</button>
+      </div>
+      <div id="reqs"><p class="empty">Loading…</p></div>
+    </section>
+
+    <section class="panel">
+      <h2>Recent audit</h2>
+      <div id="audit"><p class="empty">Loading…</p></div>
+    </section>
+  </div>
+
+  <script src="/static/js/api.js"></script>
+  <script>
+    (function () {
+      if (!window.PulseDesk) return;
+      var AC = window.PulseDesk;
+
+      function load() {
+        var status = document.getElementById("status-filter").value;
+        var q = status ? "?status=" + encodeURIComponent(status) : "";
+        return Promise.all([
+          AC.api("/staff/escalations"),
+          AC.api("/staff/requests" + q),
+          AC.api("/staff/audit?limit=20"),
+        ]).then(function (results) {
+          var escalations = results[0];
+          var requests = results[1];
+          var audit = results[2];
+
+          document.getElementById("esc").innerHTML = escalations.length
+            ? '<table class="table"><thead><tr><th>Reason</th><th>Workflow</th><th>Status</th><th></th></tr></thead><tbody>' +
+              escalations.map(function (e) {
+                return "<tr><td>" + AC.escapeHtml((e.reason || "").slice(0, 120)) +
+                  "</td><td><code>" + AC.escapeHtml(e.workflow_run_id.slice(0, 8)) +
+                  "…</code></td><td>" + AC.statusBadge(e.status) +
+                  '</td><td><a class="btn secondary" href="/staff/escalations/' + e.id + '">Review</a></td></tr>';
+              }).join("") + "</tbody></table>"
+            : '<p class="empty">No pending escalations.</p>';
+
+          document.getElementById("reqs").innerHTML = requests.length
+            ? '<table class="table"><thead><tr><th>ID</th><th>Status</th><th>Step</th><th></th></tr></thead><tbody>' +
+              requests.map(function (r) {
+                return "<tr><td><code>" + AC.escapeHtml(r.id.slice(0, 8)) +
+                  "…</code></td><td>" + AC.statusBadge(r.status) +
+                  "</td><td>" + AC.escapeHtml(r.current_step || "—") +
+                  '</td><td><a href="/patient/workflows/' + r.id + '">Open</a></td></tr>';
+              }).join("") + "</tbody></table>"
+            : '<p class="empty">No workflow runs.</p>';
+
+          document.getElementById("audit").innerHTML = audit.length
+            ? '<table class="table"><thead><tr><th>Action</th><th>Entity</th><th>When</th></tr></thead><tbody>' +
+              audit.map(function (a) {
+                return "<tr><td>" + AC.escapeHtml(a.action) + "</td><td>" +
+                  AC.escapeHtml(a.entity_type) +
+                  (a.entity_id ? " · " + AC.escapeHtml(String(a.entity_id).slice(0, 8)) + "…" : "") +
+                  '</td><td class="muted">' + AC.escapeHtml(a.created_at || "") + "</td></tr>";
+              }).join("") + "</tbody></table>"
+            : '<p class="empty">No audit events.</p>';
+        });
+      }
+
+      AC.bootPage(["STAFF", "ADMIN"], "staff").then(function (session) {
+        if (!session) return;
+        document.getElementById("reload").onclick = function () {
+          load().catch(function (ex) { alert(ex.message); });
+        };
+        document.getElementById("status-filter").onchange = function () {
+          load().catch(function (ex) { alert(ex.message); });
+        };
+        load().catch(function (ex) {
+          document.getElementById("reqs").innerHTML = '<p class="err">' + AC.escapeHtml(ex.message) + "</p>";
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

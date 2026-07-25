@@ -1,0 +1,60 @@
+# Hackathon-style automated checks for AgentCare.
+# Verifies: Python project installs, app imports, LLM factory module loads,
+# pytest passes, and routing/safety eval gates pass.
+name: agentcare-checks
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Sync dependencies
+        run: uv sync --group dev
+
+      - name: Import smoke tests
+        run: |
+          uv run python -c "import main; print('main OK', main.app.title)"
+          uv run python -c "from core.config import get_settings; print(get_settings().app_name)"
+          uv run python -c "from core import llm; print('llm factory OK', llm.get_llm.__name__)"
+
+      - name: Run pytest
+        run: uv run pytest tests/ -v --tb=short
+        env:
+          SMTP_DISABLED: "true"
+          USE_LLM: "false"
+          SECRET_KEY: "ci-test-secret"
+
+      # Deterministic keyword/routing eval (no LLM keys required).
+      # Fails the job if safety recall < 100% or routing accuracy < 80%.
+      - name: Run eval harness
+        run: uv run python evaluate.py --routing --safety
+        env:
+          SMTP_DISABLED: "true"
+          USE_LLM: "false"
+          SECRET_KEY: "ci-test-secret"
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: docs/eval_report.html
+          if-no-files-found: warn

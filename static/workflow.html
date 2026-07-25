@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseDesk — Workflow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar" id="topbar">
+      <a class="brand" href="/patient">PulseDesk</a>
+      <div class="nav-links"><span class="muted">Loading…</span></div>
+    </div>
+    <header class="page-intro">
+      <h1>Workflow</h1>
+      <p class="muted" id="wf-meta">Loading workflow…</p>
+    </header>
+    <section class="panel">
+      <h2>Progress</h2>
+      <ul class="timeline" id="tl"><li class="empty">Waiting for events…</li></ul>
+    </section>
+    <section class="panel">
+      <h2>Confirmation</h2>
+      <div id="conf"><p class="empty">No confirmation yet.</p></div>
+    </section>
+    <p><a id="back-link" href="/patient">← Back</a></p>
+  </div>
+
+  <script src="/static/js/api.js"></script>
+  <script>
+    (function () {
+      if (!window.PulseDesk) return;
+      var AC = window.PulseDesk;
+      var workflowId = location.pathname.split("/").filter(Boolean).pop();
+      var steps = [];
+
+      function pushStep(label, detail) {
+        steps.push({ label: label, detail: detail || "", at: new Date().toLocaleTimeString() });
+        document.getElementById("tl").innerHTML = steps.map(function (s) {
+          return "<li><strong>" + AC.escapeHtml(s.label) + '</strong> <span class="muted">' +
+            AC.escapeHtml(s.at) + '</span><div class="muted">' + AC.escapeHtml(s.detail) + "</div></li>";
+        }).join("");
+      }
+
+      function renderData(data) {
+        document.getElementById("wf-meta").innerHTML =
+          "<code>" + AC.escapeHtml(workflowId) + "</code> · " + AC.statusBadge(data.status) +
+          " · step <strong>" + AC.escapeHtml(data.current_step || "—") + "</strong>";
+        var conf = data.confirmation;
+        document.getElementById("conf").innerHTML = conf
+          ? '<p class="' + (conf.ok ? "ok" : "err") + '">' + (conf.ok ? "Completed OK" : "Not completed") + "</p>" +
+            '<pre style="white-space:pre-wrap;font-size:0.9rem;background:var(--paper);padding:0.75rem;border:1px solid var(--line)">' +
+            AC.escapeHtml(JSON.stringify(conf, null, 2)) + "</pre>"
+          : '<p class="empty">No confirmation yet.</p>';
+      }
+
+      AC.bootPage(["PATIENT", "STAFF", "ADMIN"], "patient").then(function (session) {
+        if (!session) return;
+        if (session.user.role !== "PATIENT") {
+          document.getElementById("back-link").href = "/staff";
+          AC.fillNav("staff");
+        }
+        function load() {
+          return AC.api("/requests/" + workflowId).then(function (data) {
+            if (!steps.length) pushStep("Loaded", "status=" + data.status);
+            renderData(data);
+            return data;
+          });
+        }
+        function connectWs() {
+          var proto = location.protocol === "https:" ? "wss" : "ws";
+          var url = proto + "://" + location.host + "/api/v1/ws/workflows/" + workflowId +
+            "?token=" + encodeURIComponent(AC.getToken());
+          var ws = new WebSocket(url);
+          ws.onmessage = function (ev) {
+            var msg = JSON.parse(ev.data);
+            if (msg.type === "ping") return;
+            pushStep(msg.type || "event", msg.current_step || msg.status || "");
+            if (["completed", "interrupted", "snapshot", "started"].indexOf(msg.type) >= 0) {
+              load().catch(function () {});
+            }
+          };
+          ws.onerror = function () { pushStep("ws-error", "WebSocket error"); };
+        }
+        load().then(connectWs).catch(function (ex) {
+          document.getElementById("wf-meta").innerHTML = '<span class="err">' + AC.escapeHtml(ex.message) + "</span>";
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[oc]
+*.so
+build/
+dist/
+wheels/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment & secrets
+.env
+.env.local
+*.pem
+
+# Local runtime data (DB, uploads, checkpoints)
+data/
+!data/.gitkeep
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# uv
+uv.lock
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

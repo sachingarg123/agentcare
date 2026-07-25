@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseDesk — Patient</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar" id="topbar">
+      <a class="brand" href="/patient">PulseDesk</a>
+      <div class="nav-links"><span class="muted">Loading…</span></div>
+    </div>
+
+    <header class="page-intro">
+      <h1>Your care desk</h1>
+      <p class="muted">Submit an administrative request, track appointments, and manage documents.</p>
+    </header>
+
+    <section class="panel panel-primary">
+      <h2>Start a request</h2>
+      <p class="muted">Describe booking, documents, or hospital navigation in plain language. Clinical questions go to staff — this system does not diagnose or prescribe.</p>
+      <form id="req-form" class="stack" style="margin-top:1rem">
+        <label>What do you need?
+          <textarea name="raw_request" required placeholder="Example: I need a cardiology follow-up next week and want to attach my old ECG."></textarea>
+        </label>
+        <label>Attach files <span class="optional">(optional)</span>
+          <input type="file" name="files" multiple />
+        </label>
+        <div class="row">
+          <button type="submit">Submit request</button>
+          <span id="req-status" class="muted"></span>
+        </div>
+        <p id="req-err" class="err" hidden></p>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Appointments</h2>
+      <div id="appts"><p class="empty">Loading appointments…</p></div>
+    </section>
+
+    <section class="panel">
+      <h2>Documents</h2>
+      <form id="doc-form" class="row" style="margin-bottom:0.75rem">
+        <input type="file" name="file" required />
+        <button type="submit">Upload</button>
+      </form>
+      <p id="doc-err" class="err" hidden></p>
+      <div id="docs"><p class="empty">Loading documents…</p></div>
+    </section>
+
+    <section class="panel">
+      <h2>Reminders</h2>
+      <div id="rems"><p class="empty">Loading reminders…</p></div>
+    </section>
+  </div>
+
+  <script src="/static/js/api.js"></script>
+  <script>
+    (function () {
+      if (!window.PulseDesk) {
+        document.body.innerHTML = '<div class="shell"><p class="err">Failed to load app scripts. Hard-refresh (Cmd+Shift+R) and try again.</p></div>';
+        return;
+      }
+      var AC = window.PulseDesk;
+
+      AC.bootPage(["PATIENT"], "patient").then(function (session) {
+        if (!session) return;
+
+        function loadLists() {
+          return Promise.all([
+            AC.api("/appointments"),
+            AC.api("/documents"),
+            AC.api("/reminders"),
+          ]).then(function (results) {
+            var appts = results[0];
+            var docs = results[1];
+            var rems = results[2];
+
+            document.getElementById("appts").innerHTML = appts.length
+              ? '<table class="table"><thead><tr><th>ID</th><th>Status</th><th>Reason</th><th></th></tr></thead><tbody>' +
+                appts.map(function (a) {
+                  return "<tr><td><code>" + AC.escapeHtml(a.id.slice(0, 8)) + "…</code></td><td>" +
+                    AC.statusBadge(a.status) + "</td><td>" + AC.escapeHtml(a.reason || "—") + "</td><td>" +
+                    (a.status !== "CANCELLED"
+                      ? '<button type="button" class="secondary cancel-appt" data-id="' + a.id + '">Cancel</button>'
+                      : "") +
+                    "</td></tr>";
+                }).join("") +
+                "</tbody></table>"
+              : '<p class="empty">No appointments yet.</p>';
+
+            document.getElementById("docs").innerHTML = docs.length
+              ? '<table class="table"><thead><tr><th>Type</th><th>File</th></tr></thead><tbody>' +
+                docs.map(function (d) {
+                  return "<tr><td>" + AC.escapeHtml(d.document_type) + '</td><td class="muted">' +
+                    AC.escapeHtml(d.file_path) + "</td></tr>";
+                }).join("") +
+                "</tbody></table>"
+              : '<p class="empty">No documents yet.</p>';
+
+            document.getElementById("rems").innerHTML = rems.length
+              ? '<table class="table"><thead><tr><th>Type</th><th>When</th><th>Status</th></tr></thead><tbody>' +
+                rems.map(function (r) {
+                  return "<tr><td>" + AC.escapeHtml(r.reminder_type) + "</td><td>" +
+                    AC.escapeHtml(r.scheduled_at || "—") + "</td><td>" + AC.statusBadge(r.status) + "</td></tr>";
+                }).join("") +
+                "</tbody></table>"
+              : '<p class="empty">No reminders yet.</p>';
+
+            document.querySelectorAll(".cancel-appt").forEach(function (btn) {
+              btn.onclick = function () {
+                if (!confirm("Cancel this appointment?")) return;
+                AC.api("/appointments/" + btn.getAttribute("data-id") + "/cancel", { method: "POST" })
+                  .then(loadLists)
+                  .catch(function (ex) { alert(ex.message); });
+              };
+            });
+          });
+        }
+
+        document.getElementById("req-form").onsubmit = function (e) {
+          e.preventDefault();
+          var err = document.getElementById("req-err");
+          var st = document.getElementById("req-status");
+          err.hidden = true;
+          st.textContent = "Starting workflow…";
+          var fd = new FormData(e.target);
+          fetch("/api/v1/requests", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + AC.getToken() },
+            body: fd,
+          })
+            .then(function (res) {
+              return res.json().then(function (body) {
+                if (!res.ok) throw new Error(body.detail || res.statusText);
+                return body;
+              });
+            })
+            .then(function (body) {
+              window.location.href = "/patient/workflows/" + body.workflow_run_id;
+            })
+            .catch(function (ex) {
+              st.textContent = "";
+              err.textContent = ex.message;
+              err.hidden = false;
+            });
+        };
+
+        document.getElementById("doc-form").onsubmit = function (e) {
+          e.preventDefault();
+          var err = document.getElementById("doc-err");
+          err.hidden = true;
+          var fd = new FormData(e.target);
+          fetch("/api/v1/documents/upload", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + AC.getToken() },
+            body: fd,
+          })
+            .then(function (res) {
+              return res.json().then(function (body) {
+                if (!res.ok) throw new Error(body.detail || res.statusText);
+                return body;
+              });
+            })
+            .then(function () {
+              e.target.reset();
+              return loadLists();
+            })
+            .catch(function (ex) {
+              err.textContent = ex.message;
+              err.hidden = false;
+            });
+        };
+
+        loadLists().catch(function (ex) {
+          document.getElementById("appts").innerHTML = '<p class="err">' + AC.escapeHtml(ex.message) + "</p>";
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseDesk — Sign in</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body class="page-auth">
+  <div class="auth-layout">
+    <aside class="auth-brand">
+      <p class="auth-eyebrow">Healthcare administration</p>
+      <h1 class="brand">PulseDesk</h1>
+      <p class="auth-lead">Book visits, upload documents, and route requests — with staff review when needed.</p>
+      <ul class="auth-points">
+        <li>Patients submit admin requests in plain language</li>
+        <li>Staff handle escalations and approvals</li>
+        <li>Not for diagnosis or prescriptions</li>
+      </ul>
+    </aside>
+
+    <main class="auth-main">
+      <div class="auth-card">
+        <input type="radio" name="auth-mode" id="mode-login" class="auth-mode" checked />
+        <input type="radio" name="auth-mode" id="mode-register" class="auth-mode" />
+
+        <div class="auth-tabs" role="tablist">
+          <label for="mode-login" class="auth-tab" id="label-login">Sign in</label>
+          <label for="mode-register" class="auth-tab" id="label-register">Create account</label>
+        </div>
+
+        <!-- method=post + onsubmit prevents accidental GET to /?email=... -->
+        <form id="login-form" class="stack auth-pane auth-pane-login" method="post" action="#" autocomplete="on" onsubmit="return handleLogin(event)">
+          <h2 class="auth-card-title">Welcome back</h2>
+          <p class="auth-card-sub">Use a demo account below, or your own credentials.</p>
+          <label>Email
+            <input type="email" name="email" id="login-email" required autocomplete="username" placeholder="you@example.com" />
+          </label>
+          <label>Password
+            <input type="password" name="password" id="login-password" required autocomplete="current-password" placeholder="••••••••" />
+          </label>
+          <button type="submit" class="btn-block" id="login-btn">Sign in</button>
+          <p id="login-err" class="err" hidden></p>
+        </form>
+
+        <form id="register-form" class="stack auth-pane auth-pane-register" method="post" action="#" autocomplete="on" onsubmit="return handleRegister(event)">
+          <h2 class="auth-card-title">New patient</h2>
+          <p class="auth-card-sub">Creates a patient account and signs you in.</p>
+          <label>Full name
+            <input type="text" name="name" required placeholder="Ada Patient" />
+          </label>
+          <label>Email
+            <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" />
+          </label>
+          <label>Password
+            <input type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters" />
+          </label>
+          <label>Phone <span class="optional">(optional)</span>
+            <input type="text" name="phone" placeholder="+91 …" />
+          </label>
+          <button type="submit" class="btn-block" id="register-btn">Create account</button>
+          <p id="register-err" class="err" hidden></p>
+        </form>
+
+        <div class="demo-box" id="demo-box">
+          <div class="demo-box-head">
+            <strong>Try a demo account</strong>
+            <span>password: <code>password123</code></span>
+          </div>
+          <p id="demo-fill-msg" class="demo-fill-msg" hidden></p>
+          <div class="demo-chips">
+            <button type="button" class="chip" data-email="asha.patient@example.com" onclick="fillDemo(this)">Patient · Asha</button>
+            <button type="button" class="chip" data-email="ravi.patient@example.com" onclick="fillDemo(this)">Patient · Ravi</button>
+            <button type="button" class="chip" data-email="sam.staff@example.com" onclick="fillDemo(this)">Staff · Sam</button>
+            <button type="button" class="chip" data-email="ada.admin@example.com" onclick="fillDemo(this)">Admin · Ada</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function fillDemo(btn) {
+      var email = btn.getAttribute("data-email") || "";
+      var loginRadio = document.getElementById("mode-login");
+      var emailInput = document.getElementById("login-email");
+      var passInput = document.getElementById("login-password");
+      var msg = document.getElementById("demo-fill-msg");
+      if (loginRadio) loginRadio.checked = true;
+      if (emailInput) emailInput.value = email;
+      if (passInput) passInput.value = "password123";
+      if (msg) {
+        msg.hidden = false;
+        msg.textContent = "Filled: " + email + " / password123 — click Sign in";
+      }
+      if (emailInput) emailInput.focus();
+      return false;
+    }
+
+    function roleHome(role) {
+      if (role === "STAFF" || role === "ADMIN") return "/staff";
+      return "/patient";
+    }
+
+    function saveSession(token, user) {
+      localStorage.setItem("agentcare_token", token);
+      localStorage.setItem("agentcare_user", JSON.stringify(user));
+    }
+
+    function showErr(id, text) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.hidden = !text;
+      el.textContent = text || "";
+    }
+
+    function handleLogin(event) {
+      event.preventDefault();
+      var form = document.getElementById("login-form");
+      var btn = document.getElementById("login-btn");
+      var email = document.getElementById("login-email").value.trim();
+      var password = document.getElementById("login-password").value;
+      showErr("login-err", "");
+      btn.disabled = true;
+      btn.textContent = "Signing in…";
+
+      fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, password: password }),
+      })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, status: res.status, data: data };
+          });
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            var detail = result.data && result.data.detail;
+            throw new Error(typeof detail === "string" ? detail : "Sign in failed");
+          }
+          saveSession(result.data.access_token, {
+            id: result.data.user_id,
+            role: result.data.role,
+            email: email,
+            name: email,
+          });
+          return fetch("/api/v1/auth/me", {
+            headers: { Authorization: "Bearer " + result.data.access_token },
+          });
+        })
+        .then(function (res) {
+          if (!res || !res.ok) {
+            window.location.href = "/patient";
+            return null;
+          }
+          return res.json();
+        })
+        .then(function (me) {
+          if (!me) return;
+          saveSession(localStorage.getItem("agentcare_token"), me);
+          window.location.href = roleHome(me.role);
+        })
+        .catch(function (err) {
+          showErr("login-err", err.message || "Sign in failed");
+          btn.disabled = false;
+          btn.textContent = "Sign in";
+        });
+
+      return false;
+    }
+
+    function handleRegister(event) {
+      event.preventDefault();
+      var form = document.getElementById("register-form");
+      var btn = document.getElementById("register-btn");
+      var fd = new FormData(form);
+      var payload = {
+        name: fd.get("name"),
+        email: fd.get("email"),
+        password: fd.get("password"),
+      };
+      var phone = fd.get("phone");
+      if (phone) payload.phone = phone;
+      showErr("register-err", "");
+      btn.disabled = true;
+      btn.textContent = "Creating…";
+
+      fetch("/api/v1/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            var detail = result.data && result.data.detail;
+            throw new Error(typeof detail === "string" ? detail : "Registration failed");
+          }
+          saveSession(result.data.access_token, {
+            id: result.data.user_id,
+            role: result.data.role,
+            email: payload.email,
+            name: payload.name,
+          });
+          window.location.href = "/patient";
+        })
+        .catch(function (err) {
+          showErr("register-err", err.message || "Registration failed");
+          btn.disabled = false;
+          btn.textContent = "Create account";
+        });
+
+      return false;
+    }
+
+    // If already logged in, go to the right home
+    (function () {
+      var token = localStorage.getItem("agentcare_token");
+      if (!token) return;
+      fetch("/api/v1/auth/me", { headers: { Authorization: "Bearer " + token } })
+        .then(function (res) {
+          if (!res.ok) throw new Error("expired");
+          return res.json();
+        })
+        .then(function (me) {
+          saveSession(token, me);
+          window.location.href = roleHome(me.role);
+        })
+        .catch(function () {
+          localStorage.removeItem("agentcare_token");
+          localStorage.removeItem("agentcare_user");
+        });
+    })();
+  </script>
+</body>
+</html>

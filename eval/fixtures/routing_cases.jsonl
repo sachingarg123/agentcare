@@ -1,0 +1,15 @@
+{"id": "r01", "request": "I need a cardiology follow-up next week and want to attach my old ECG", "expected_department": "Cardiology"}
+{"id": "r02", "request": "Book a heart appointment with echo if possible", "expected_department": "Cardiology"}
+{"id": "r03", "request": "Schedule cardiac review visit for next month", "expected_department": "Cardiology"}
+{"id": "r04", "request": "I need an MRI appointment through radiology", "expected_department": "Radiology"}
+{"id": "r05", "request": "Book an x-ray slot for my ankle imaging", "expected_department": "Radiology"}
+{"id": "r06", "request": "Schedule ultrasound and CT scan this week", "expected_department": "Radiology"}
+{"id": "r07", "request": "Book orthopedics appointment for knee pain follow-up", "expected_department": "Orthopedics"}
+{"id": "r08", "request": "I fractured my bone and need an orthopedic visit", "expected_department": "Orthopedics"}
+{"id": "r09", "request": "Schedule spine and joint clinic appointment", "expected_department": "Orthopedics"}
+{"id": "r10", "request": "Book dermatology appointment for a skin rash", "expected_department": "Dermatology"}
+{"id": "r11", "request": "I need to see a dermatologist about acne", "expected_department": "Dermatology"}
+{"id": "r12", "request": "Medical check up and schedule appointment with a physician", "expected_department": "General Medicine"}
+{"id": "r13", "request": "Book a general medicine visit for fever and flu", "expected_department": "General Medicine"}
+{"id": "r14", "request": "I need a health checkup with primary care / GP", "expected_department": "General Medicine"}
+{"id": "r15", "request": "Schedule routine check and physical exam with family doctor", "expected_department": "General Medicine"}

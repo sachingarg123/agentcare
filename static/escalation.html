@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseDesk — Escalation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar" id="topbar">
+      <a class="brand" href="/staff">PulseDesk</a>
+      <div class="nav-links"><span class="muted">Loading…</span></div>
+    </div>
+    <div id="content"><p class="empty">Loading escalation…</p></div>
+  </div>
+  <script src="/static/js/api.js"></script>
+  <script>
+    (function () {
+      if (!window.PulseDesk) return;
+      var AC = window.PulseDesk;
+      var escalationId = location.pathname.split("/").filter(Boolean).pop();
+
+      AC.bootPage(["STAFF", "ADMIN"], "staff").then(function (session) {
+        if (!session) return;
+        return AC.api("/staff/escalations?pending_only=false").then(function (pending) {
+          var esc = pending.filter(function (e) { return e.id === escalationId; })[0];
+          if (!esc) {
+            document.getElementById("content").innerHTML =
+              '<p class="err">Escalation not found.</p><p><a href="/staff">← Back</a></p>';
+            return;
+          }
+          return AC.api("/requests/" + esc.workflow_run_id).catch(function () { return null; }).then(function (workflow) {
+            var html = '<header class="page-intro"><h1>Escalation review</h1>' +
+              "<p>" + AC.statusBadge(esc.status) + ' · workflow <a href="/patient/workflows/' +
+              esc.workflow_run_id + '"><code>' + AC.escapeHtml(esc.workflow_run_id.slice(0, 8)) +
+              "…</code></a></p></header>" +
+              '<section class="panel"><h2>Reason</h2><p>' + AC.escapeHtml(esc.reason) + "</p>";
+            if (workflow) {
+              html += '<p class="muted">Step: ' + AC.escapeHtml(workflow.current_step || "—") +
+                " · " + AC.statusBadge(workflow.status) + "</p>";
+            }
+            html += "</section>";
+            if (esc.status === "PENDING") {
+              html += '<section class="panel panel-primary"><h2>Decision</h2>' +
+                '<form id="resolve" class="stack">' +
+                '<label>Decision<select name="decision" required><option value="approve">Approve</option><option value="reject">Reject</option></select></label>' +
+                '<label>Note<textarea name="note" placeholder="Staff note"></textarea></label>' +
+                '<label>Department ID (for routing HITL)<input name="department_id" placeholder="UUID if assigning department" /></label>' +
+                '<label>Department name<input name="department_name" /></label>' +
+                '<div class="row"><button type="submit">Submit &amp; resume</button>' +
+                '<a class="btn secondary" href="/staff">Cancel</a></div>' +
+                '<p id="err" class="err" hidden></p></form></section>';
+            } else {
+              html += '<section class="panel"><p class="muted">Already resolved as ' +
+                AC.escapeHtml(esc.status) + '.</p><p><a href="/staff">← Back</a></p></section>';
+            }
+            document.getElementById("content").innerHTML = html;
+            var form = document.getElementById("resolve");
+            if (!form) return;
+            form.onsubmit = function (e) {
+              e.preventDefault();
+              var fd = new FormData(form);
+              var err = document.getElementById("err");
+              err.hidden = true;
+              AC.api("/staff/escalations/" + escalationId + "/resolve", {
+                method: "POST",
+                json: {
+                  decision: fd.get("decision"),
+                  note: fd.get("note") || null,
+                  department_id: fd.get("department_id") || null,
+                  department_name: fd.get("department_name") || null,
+                },
+              }).then(function () {
+                window.location.href = "/staff";
+              }).catch(function (ex) {
+                err.textContent = ex.message;
+                err.hidden = false;
+              });
+            };
+          });
+        });
+      }).catch(function (ex) {
+        document.getElementById("content").innerHTML = '<p class="err">' + AC.escapeHtml(ex.message) + "</p>";
+      });
+    })();
+  </script>
+</body>
+</html>

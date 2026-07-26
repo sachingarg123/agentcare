@@ -112,6 +112,8 @@ cd frontend && npm install && npm run dev
 # → http://127.0.0.1:5173  (proxies /api + WebSocket to :8000)
 ```
 
+On app startup, `seed_if_empty()` also loads this data **only if** the DB has never been seeded (e.g. first Railway boot). It does **not** refresh an existing database.
+
 ### Serve SPA from FastAPI (optional)
 
 ```bash
@@ -129,6 +131,14 @@ Password for **all**: `password123`
 | PATIENT | `ravi.patient@example.com` |
 | STAFF | `sam.staff@example.com` |
 | ADMIN | `ada.admin@example.com` |
+
+**Seed freshness:** Demo users, departments, and document checklists stay valid. Appointment **slots** are generated as “tomorrow onward” at seed time. If the DB was seeded days ago (common with a persistent Railway volume), those slots can be in the past and booking may fail even though logins still work.
+
+Refresh seed (wipes seed hospital/user rows and recreates fresh slots):
+
+```bash
+uv run python scripts/seed_data.py --force
+```
 
 ---
 

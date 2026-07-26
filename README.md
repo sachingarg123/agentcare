@@ -101,6 +101,8 @@ cp .env.example .env
 # 3. DB + seed (synthetic hospital data — no real PHI)
 uv run alembic upgrade head
 uv run python scripts/seed_data.py
+# If the DB is already seeded and you need fresh slots/users, force it:
+# uv run python scripts/seed_data.py --force
 
 # 4. API
 uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000
@@ -134,7 +136,7 @@ Password for **all**: `password123`
 
 **Seed freshness:** Demo users, departments, and document checklists stay valid. Appointment **slots** are generated as “tomorrow onward” at seed time. If the DB was seeded days ago (common with a persistent Railway volume), those slots can be in the past and booking may fail even though logins still work.
 
-Refresh seed (wipes seed hospital/user rows and recreates fresh slots):
+If you need to **force** a reseed (wipe seed hospital/user rows and recreate fresh slots):
 
 ```bash
 uv run python scripts/seed_data.py --force
